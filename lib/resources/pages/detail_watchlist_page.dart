@@ -16,72 +16,35 @@ class DetailWatchlistPage extends StatefulWidget {
 
 class _DetailWatchlistPageState extends State<DetailWatchlistPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
-
-  Map<String, dynamic>? _item;
-
-  bool _argumentsLoaded = false;
   bool _isDeleting = false;
 
-  final List<String> _genres = const [
-    'Action',
-    'Comedy',
-    'Romance',
-    'Horror',
-    'Drama',
-    'Sci-Fi',
-    'Fantasy',
-    'Anime',
-    'Thriller',
-    'Documentary',
-  ];
-
-  final List<Map<String, String>> _statuses = const [
-    {'value': 'want_to_watch', 'label': 'Want to Watch'},
-    {'value': 'watching', 'label': 'Watching'},
-    {'value': 'finished', 'label': 'Finished'},
-  ];
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    if (_argumentsLoaded) return;
-
-    _argumentsLoaded = true;
-
-    final arguments = ModalRoute.of(context)?.settings.arguments;
-
-    if (arguments is Map<String, dynamic>) {
-      _item = Map<String, dynamic>.from(arguments);
-    } else if (arguments is Map) {
-      _item = Map<String, dynamic>.from(arguments);
-    }
+  Map<String, dynamic>? _getItemData(BuildContext context) {
+    final routeArgs = ModalRoute.of(context)?.settings.arguments;
+    if (routeArgs is Map<String, dynamic>) return routeArgs;
+    if (routeArgs is Map) return Map<String, dynamic>.from(routeArgs);
+    return null;
   }
 
-  String _readText(String key, {String fallback = ''}) {
-    final value = _item?[key];
-
+  String _readText(Map<String, dynamic>? item, String key, {String fallback = ''}) {
+    if (item == null) return fallback;
+    final value = item[key];
     if (value == null || value.toString().trim().isEmpty) {
       return fallback;
     }
-
     return value.toString().trim();
   }
 
   String _normalizeStatus(dynamic value) {
     String status = value?.toString().trim().toLowerCase() ?? '';
-
     status = status.replaceAll(RegExp(r'[\s-]+'), '_');
 
     switch (status) {
       case 'watching':
         return 'watching';
-
       case 'finished':
       case 'finish':
       case 'completed':
         return 'finished';
-
       default:
         return 'want_to_watch';
     }
@@ -90,32 +53,26 @@ class _DetailWatchlistPageState extends State<DetailWatchlistPage> {
   String _statusLabel(dynamic value) {
     switch (_normalizeStatus(value)) {
       case 'watching':
-        return 'WATCHING';
-
+        return 'Watching';
       case 'finished':
-        return 'FINISHED';
-
+        return 'Finished';
       default:
-        return 'WANT TO WATCH';
+        return 'Want to Watch';
     }
   }
 
   String _formatRating(dynamic value) {
     if (value == null || value.toString().trim().isEmpty) {
-      return 'Not rated';
+      return '0.0';
     }
-
     final double? rating = double.tryParse(value.toString());
-
     if (rating == null) {
       return value.toString();
     }
-
     if (rating == rating.roundToDouble()) {
-      return '${rating.toInt()}/10';
+      return rating.toInt().toString();
     }
-
-    return '${rating.toStringAsFixed(1)}/10';
+    return rating.toStringAsFixed(1);
   }
 
   void _showMessage(String message, {bool isError = false}) {
@@ -152,7 +109,7 @@ class _DetailWatchlistPageState extends State<DetailWatchlistPage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFFE50914), width: 1.3),
+        borderSide: const BorderSide(color: Color(0xFFFF3B3B), width: 1.3),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -165,68 +122,74 @@ class _DetailWatchlistPageState extends State<DetailWatchlistPage> {
     );
   }
 
-  // --- Fungsi Baru: Menyimpan data di latar belakang ---
- Future<void> _saveWatchlistData(Map<String, dynamic> data) async {
-  try {
-    final id = _item!['id'];
+  Future<void> _saveWatchlistData(Map<String, dynamic> item, Map<String, dynamic> data) async {
+    try {
+      final id = item['id'];
+      
+      await Supabase.instance.client
+          .from('watchlists')
+          .update(data)
+          .eq('id', id);
 
-    debugPrint("ID UPDATE: $id");
-    debugPrint("DATA UPDATE: $data");
-
-    await Supabase.instance.client
-        .from('watchlists')
-        .update(data)
-        .eq('id', id);
-
-    debugPrint("UPDATE SUCCESS");
-
-  } catch (e) {
-    debugPrint("UPDATE FAILED: $e");
+      debugPrint("UPDATE BERHASIL");
+      _showMessage('Perubahan berhasil disimpan!');
+    } catch (e) {
+      debugPrint("UPDATE GAGAL: $e");
+      _showMessage('Gagal menyimpan: $e', isError: true);
+    }
   }
-}
-  Future<void> _openEditSheet() async {
-    if (_item == null) return;
 
+  Future<void> _openEditSheet(Map<String, dynamic> item) async {
     final GlobalKey<FormState> formKey = GlobalKey<FormState>();
 
     final TextEditingController titleController = TextEditingController(
-      text: _readText('title'),
+      text: _readText(item, 'title'),
     );
-
     final TextEditingController platformController = TextEditingController(
-      text: _readText('platform'),
+      text: _readText(item, 'platform'),
     );
-
     final TextEditingController ratingController = TextEditingController(
-      text: _item?['rating']?.toString() ?? '',
+      text: item['rating']?.toString() ?? '',
     );
-
     final TextEditingController notesController = TextEditingController(
-      text: _readText('notes'),
+      text: _readText(item, 'notes'),
     );
-
     final TextEditingController lastWatchedController = TextEditingController(
-      text: _readText('last_watched'),
+      text: _readText(item, 'last_watched'),
     );
 
-    String selectedType = _readText('type', fallback: 'movie').toLowerCase();
-
+    String selectedType = _readText(item, 'type', fallback: 'movie').toLowerCase();
     if (selectedType != 'movie' && selectedType != 'series') {
       selectedType = 'movie';
     }
 
-    final List<String> availableGenres = List<String>.from(_genres);
-
-    String selectedGenre = _readText('genre', fallback: 'Action');
-
+    final List<String> genresList = const [
+      'Action',
+      'Comedy',
+      'Romance',
+      'Horror',
+      'Drama',
+      'Sci-Fi',
+      'Fantasy',
+      'Anime',
+      'Thriller',
+      'Documentary',
+    ];
+    final List<String> availableGenres = List<String>.from(genresList);
+    String selectedGenre = _readText(item, 'genre', fallback: 'Action');
     if (!availableGenres.contains(selectedGenre)) {
       availableGenres.add(selectedGenre);
     }
 
-    String selectedStatus = _normalizeStatus(_item?['status']);
+    String selectedStatus = _normalizeStatus(item['status']);
 
-    final Map<String, dynamic>?
-    updatedData = await showModalBottomSheet<Map<String, dynamic>>(
+    final statuses = const [
+      {'value': 'want_to_watch', 'label': 'Want to Watch'},
+      {'value': 'watching', 'label': 'Watching'},
+      {'value': 'finished', 'label': 'Finished'},
+    ];
+
+    final Map<String, dynamic>? updatedData = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF171717),
@@ -262,9 +225,7 @@ class _DetailWatchlistPageState extends State<DetailWatchlistPage> {
                               ),
                             ),
                             TextButton(
-                              onPressed: () {
-                                Navigator.of(sheetContext).pop();
-                              },
+                              onPressed: () => Navigator.of(sheetContext).pop(),
                               child: const Text(
                                 'Close',
                                 style: TextStyle(
@@ -279,10 +240,7 @@ class _DetailWatchlistPageState extends State<DetailWatchlistPage> {
                         TextFormField(
                           controller: titleController,
                           style: const TextStyle(color: Colors.white),
-                          decoration: _editInputDecoration(
-                            label: 'Title',
-                            hint: 'Movie or series title',
-                          ),
+                          decoration: _editInputDecoration(label: 'Title', hint: 'Movie or series title'),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return 'Title wajib diisi';
@@ -297,20 +255,12 @@ class _DetailWatchlistPageState extends State<DetailWatchlistPage> {
                           style: const TextStyle(color: Colors.white),
                           decoration: _editInputDecoration(label: 'Type'),
                           items: const [
-                            DropdownMenuItem(
-                              value: 'movie',
-                              child: Text('Movie'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'series',
-                              child: Text('Series'),
-                            ),
+                            DropdownMenuItem(value: 'movie', child: Text('Movie')),
+                            DropdownMenuItem(value: 'series', child: Text('Series')),
                           ],
                           onChanged: (value) {
                             if (value != null) {
-                              setModalState(() {
-                                selectedType = value;
-                              });
+                              setModalState(() => selectedType = value);
                             }
                           },
                         ),
@@ -321,16 +271,11 @@ class _DetailWatchlistPageState extends State<DetailWatchlistPage> {
                           style: const TextStyle(color: Colors.white),
                           decoration: _editInputDecoration(label: 'Genre'),
                           items: availableGenres.map((genre) {
-                            return DropdownMenuItem<String>(
-                              value: genre,
-                              child: Text(genre),
-                            );
+                            return DropdownMenuItem<String>(value: genre, child: Text(genre));
                           }).toList(),
                           onChanged: (value) {
                             if (value != null) {
-                              setModalState(() {
-                                selectedGenre = value;
-                              });
+                              setModalState(() => selectedGenre = value);
                             }
                           },
                         ),
@@ -338,10 +283,7 @@ class _DetailWatchlistPageState extends State<DetailWatchlistPage> {
                         TextFormField(
                           controller: platformController,
                           style: const TextStyle(color: Colors.white),
-                          decoration: _editInputDecoration(
-                            label: 'Platform',
-                            hint: 'Netflix, Disney+, Viu',
-                          ),
+                          decoration: _editInputDecoration(label: 'Platform', hint: 'Netflix, Disney+, Viu'),
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
@@ -349,7 +291,7 @@ class _DetailWatchlistPageState extends State<DetailWatchlistPage> {
                           dropdownColor: const Color(0xFF242424),
                           style: const TextStyle(color: Colors.white),
                           decoration: _editInputDecoration(label: 'Status'),
-                          items: _statuses.map((status) {
+                          items: statuses.map((status) {
                             return DropdownMenuItem<String>(
                               value: status['value'],
                               child: Text(status['label']!),
@@ -357,47 +299,22 @@ class _DetailWatchlistPageState extends State<DetailWatchlistPage> {
                           }).toList(),
                           onChanged: (value) {
                             if (value != null) {
-                              setModalState(() {
-                                selectedStatus = value;
-                              });
+                              setModalState(() => selectedStatus = value);
                             }
                           },
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: ratingController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           style: const TextStyle(color: Colors.white),
-                          decoration: _editInputDecoration(
-                            label: 'Rating',
-                            hint: '0 - 10',
-                          ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return null;
-                            }
-                            final rating = double.tryParse(
-                              value.trim().replaceAll(',', '.'),
-                            );
-                            if (rating == null) {
-                              return 'Rating harus berupa angka';
-                            }
-                            if (rating < 0 || rating > 10) {
-                              return 'Rating harus antara 0 sampai 10';
-                            }
-                            return null;
-                          },
+                          decoration: _editInputDecoration(label: 'Rating', hint: '0 - 10'),
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: lastWatchedController,
                           style: const TextStyle(color: Colors.white),
-                          decoration: _editInputDecoration(
-                            label: 'Last Watched',
-                            hint: 'Season 2, Episode 5',
-                          ),
+                          decoration: _editInputDecoration(label: 'Last Watched', hint: 'Season 2, Episode 5'),
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -405,10 +322,7 @@ class _DetailWatchlistPageState extends State<DetailWatchlistPage> {
                           minLines: 4,
                           maxLines: 6,
                           style: const TextStyle(color: Colors.white),
-                          decoration: _editInputDecoration(
-                            label: 'Personal Notes',
-                            hint: 'Write your notes...',
-                          ),
+                          decoration: _editInputDecoration(label: 'Personal Notes', hint: 'Write your notes...'),
                         ),
                         const SizedBox(height: 24),
                         SizedBox(
@@ -416,53 +330,29 @@ class _DetailWatchlistPageState extends State<DetailWatchlistPage> {
                           height: 52,
                           child: ElevatedButton(
                             onPressed: () {
-                              if (formKey.currentState?.validate() != true) {
-                                return;
-                              }
+                              if (formKey.currentState?.validate() != true) return;
+                              final ratingText = ratingController.text.trim().replaceAll(',', '.');
+                              final double? rating = ratingText.isEmpty ? null : double.tryParse(ratingText);
 
-                              final ratingText = ratingController.text
-                                  .trim()
-                                  .replaceAll(',', '.');
-                              final double? rating = ratingText.isEmpty
-                                  ? null
-                                  : double.tryParse(ratingText);
-
-                              // Kumpulkan data dan langsung tutup modal
                               final newData = {
                                 'title': titleController.text.trim(),
                                 'type': selectedType,
                                 'genre': selectedGenre,
-                                'platform':
-                                    platformController.text.trim().isEmpty
-                                    ? null
-                                    : platformController.text.trim(),
+                                'platform': platformController.text.trim().isEmpty ? null : platformController.text.trim(),
                                 'status': selectedStatus,
                                 'rating': rating,
-                                'notes': notesController.text.trim().isEmpty
-                                    ? null
-                                    : notesController.text.trim(),
-                                'last_watched':
-                                    lastWatchedController.text.trim().isEmpty
-                                    ? null
-                                    : lastWatchedController.text.trim(),
+                                'notes': notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+                                'last_watched': lastWatchedController.text.trim().isEmpty ? null : lastWatchedController.text.trim(),
                               };
 
                               Navigator.of(sheetContext).pop(newData);
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFE50914),
+                              backgroundColor: const Color(0xFFFF3B3B),
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
-                            child: const Text(
-                              'Save Changes',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                            child: const Text('Save Changes', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ],
@@ -477,42 +367,34 @@ class _DetailWatchlistPageState extends State<DetailWatchlistPage> {
     );
 
     if (updatedData != null && mounted) {
-      await _saveWatchlistData(updatedData);
-
+      await _saveWatchlistData(item, updatedData);
       if (!mounted) return;
-
       setState(() {
-        _item = {if (_item != null) ..._item!, ...updatedData};
+        item.addAll(updatedData);
       });
     }
   }
 
-  Future<void> _confirmDelete() async {
+  Future<void> _confirmDelete(Map<String, dynamic> item) async {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF202020),
-          title: const Text(
-            'Delete Watchlist?',
-            style: TextStyle(color: Colors.white),
+          backgroundColor: const Color(0xff2A0A0E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFFFF3B3B)),
           ),
-          content: Text(
-            'Apakah Anda yakin ingin menghapus '
-            '"${_readText('title', fallback: 'this watchlist')}"?',
-            style: const TextStyle(color: Color(0xFFCCCCCC)),
-          ),
+          title: const Text('Delete Watchlist?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: Text('Apakah Anda yakin ingin menghapus "${_readText(item, 'title', fallback: 'this watchlist')}"?', style: const TextStyle(color: Colors.grey)),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white)),
             ),
             ElevatedButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE50914),
-                foregroundColor: Colors.white,
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF3B3B), foregroundColor: Colors.white),
               child: const Text('Delete'),
             ),
           ],
@@ -521,350 +403,335 @@ class _DetailWatchlistPageState extends State<DetailWatchlistPage> {
     );
 
     if (confirmed == true) {
-      await _deleteWatchlist();
+      await _deleteWatchlist(item);
     }
   }
 
-  Future<void> _deleteWatchlist() async {
+  Future<void> _deleteWatchlist(Map<String, dynamic> item) async {
     final user = _supabase.auth.currentUser;
-    final id = _item?['id'];
+    final id = item['id'];
 
     if (user == null || id == null) {
       _showMessage('User atau ID watchlist tidak ditemukan.', isError: true);
       return;
     }
 
-    setState(() {
-      _isDeleting = true;
-    });
+    setState(() => _isDeleting = true);
 
     try {
-      final String posterUrl = _readText('poster_url');
-
-      await _supabase
-          .from('watchlists')
-          .delete()
-          .eq('id', id)
-          .eq('user_id', user.id);
+      final String posterUrl = _readText(item, 'poster_url');
+      await _supabase.from('watchlists').delete().eq('id', id).eq('user_id', user.id);
 
       final String? posterPath = _extractPosterStoragePath(posterUrl);
-
       if (posterPath != null) {
         try {
-          await _supabase.storage.from('watchlist-posters').remove([
-            posterPath,
-          ]);
-        } catch (error) {
-          debugPrint('Poster cleanup gagal: $error');
-        }
+          await _supabase.storage.from('watchlist-posters').remove([posterPath]);
+        } catch (_) {}
       }
 
       if (!mounted) return;
-
-      Navigator.of(context).pop(true);
-    } on PostgrestException catch (error) {
-      _showMessage(
-        'Gagal menghapus watchlist: ${error.message}',
-        isError: true,
-      );
+      Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
     } catch (error) {
       _showMessage('Gagal menghapus watchlist: $error', isError: true);
     } finally {
-      if (mounted) {
-        setState(() {
-          _isDeleting = false;
-        });
-      }
+      if (mounted) setState(() => _isDeleting = false);
     }
   }
 
   String? _extractPosterStoragePath(String posterUrl) {
     if (posterUrl.isEmpty) return null;
-
     const marker = '/storage/v1/object/public/watchlist-posters/';
     final int markerIndex = posterUrl.indexOf(marker);
-
     if (markerIndex == -1) return null;
-
     String path = posterUrl.substring(markerIndex + marker.length);
-    if (path.contains('?')) {
-      path = path.split('?').first;
-    }
-
+    if (path.contains('?')) path = path.split('?').first;
     return Uri.decodeComponent(path);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_argumentsLoaded) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF0D0D0D),
-        body: Center(
-          child: CircularProgressIndicator(color: Color(0xFFE50914)),
-        ),
-      );
-    }
+    final Map<String, dynamic>? item = _getItemData(context);
 
-    if (_item == null) {
+    if (item == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFF0D0D0D),
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF0D0D0D),
-          foregroundColor: Colors.white,
-          leadingWidth: 70,
-          leading: TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'Back',
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
-          ),
-          title: const Text('Watchlist Detail'),
-        ),
-        body: const Center(
-          child: Text(
-            'Data watchlist tidak ditemukan.',
-            style: TextStyle(color: Colors.white),
+        backgroundColor: const Color(0xff120708),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Data watchlist tidak ditemukan.', style: TextStyle(color: Colors.white)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF3B3B)),
+                child: const Text('Kembali ke Home', style: TextStyle(color: Colors.white)),
+              ),
+            ],
           ),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0D),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0D0D0D),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        leadingWidth: 70,
-        leading: TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text(
-            'Back',
-            style: TextStyle(color: Colors.white, fontSize: 16),
+      backgroundColor: const Color(0xff120708),
+      bottomNavigationBar: Container(
+        color: const Color(0xff120708),
+        padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
+        child: Container(
+          height: 60,
+          decoration: BoxDecoration(
+            color: const Color(0xff120708),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFFF3B3B), width: 1.2),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+                  },
+                  child: const Center(
+                    child: Icon(Icons.home_outlined, color: Colors.white, size: 28),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    Navigator.of(context).pushNamed('/profile');
+                  },
+                  child: const Center(
+                    child: Icon(Icons.person_outline_rounded, color: Colors.white, size: 28),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        title: const Text(
-          'Watchlist Detail',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
       ),
-      bottomNavigationBar: _buildBottomButtons(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: 30),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildPoster(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 110),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    _readText('title', fallback: 'Untitled'),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      height: 1.2,
-                      fontWeight: FontWeight.bold,
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFFFF3B3B), width: 1.5),
+                      ),
+                      child: const Icon(Icons.arrow_back, color: Color(0xFFFF3B3B), size: 20),
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _buildChip(
-                        _readText('type', fallback: 'Movie').toUpperCase(),
-                      ),
-                      _buildChip(_readText('genre', fallback: 'Uncategorized')),
-                      if (_readText('platform').isNotEmpty)
-                        _buildChip(_readText('platform')),
-                    ],
+                  const Text(
+                    'Watch Detail',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      _buildStatusBadge(),
-                      const Spacer(),
-                      Text(
-                        _formatRating(_item?['rating']),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
+                  const SizedBox(width: 36), // Penyeimbang agar teks berada di tengah secara presisi
+                ],
+              ),
+              const SizedBox(height: 30),
+
+              // Header Card
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFFF3B3B)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildPoster(item),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _readText(item, 'title', fallback: 'Untitled'),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${_readText(item, 'type', fallback: 'Movie')} • ${_readText(item, 'genre', fallback: 'Uncategorized')}',
+                            style: const TextStyle(color: Colors.grey, fontSize: 11),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFFF3B3B)),
+                            ),
+                            child: Text(
+                              _statusLabel(item['status']),
+                              style: const TextStyle(color: Color(0xFFFF3B3B), fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: List.generate(5, (_) => const Icon(Icons.star, color: Colors.amber, size: 14)),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatRating(item['rating']),
+                            style: const TextStyle(color: Colors.amber, fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Info Tiles
+              _buildInfoTile(icon: Icons.play_arrow, label: 'Platform', value: _readText(item, 'platform', fallback: '-')),
+              _buildInfoTile(icon: Icons.star, label: 'Genre', value: _readText(item, 'genre', fallback: '-')),
+              _buildInfoTile(icon: Icons.check, label: 'Last Watched', value: _readText(item, 'last_watched', fallback: '-')),
+
+              const SizedBox(height: 8),
+
+              // Personal Notes
+              const Text(
+                'Personal Notes',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                constraints: const BoxConstraints(minHeight: 120),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xff2A0A0E),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFFF3B3B)),
+                ),
+                child: Text(
+                  _readText(item, 'notes', fallback: '...'),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Action Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: _isDeleting ? null : () => _openEditSheet(item),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF3B3B),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('EDIT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: OutlinedButton(
+                        onPressed: _isDeleting ? null : () => _confirmDelete(item),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: const Color(0xff120708),
+                          side: const BorderSide(color: Color(0xFFFF3B3B), width: 1.5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: Text(
+                          _isDeleting ? 'DELETING...' : 'DELETE',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.0),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 28),
-                  _buildInfoSection(
-                    title: 'Last Watched',
-                    content: _readText(
-                      'last_watched',
-                      fallback: 'No watching progress recorded.',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildInfoSection(
-                    title: 'Personal Notes',
-                    content: _readText(
-                      'notes',
-                      fallback: 'No personal notes yet.',
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPoster() {
-    final posterUrl = _readText('poster_url');
-
-    return Container(
-      width: double.infinity,
-      height: 370,
-      color: const Color(0xFF1E1E1E),
-      child: posterUrl.isEmpty
-          ? const Center(
-              child: Text(
-                'No Image Available',
-                style: TextStyle(color: Color(0xFF777777), fontSize: 14),
-              ),
-            )
-          : Image.network(
-              posterUrl,
-              fit: BoxFit.contain,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return const Center(
-                  child: CircularProgressIndicator(color: Color(0xFFE50914)),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) {
-                return const Center(
-                  child: Text(
-                    'Image Error',
-                    style: TextStyle(color: Color(0xFF777777), fontSize: 14),
-                  ),
-                );
-              },
-            ),
-    );
-  }
-
-  Widget _buildChip(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2D2D2D),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Color(0xFFE1E1E1),
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF3A1115),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF8E2028)),
-      ),
-      child: Text(
-        _statusLabel(_item?['status']),
-        style: const TextStyle(
-          color: Color(0xFFFF747B),
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoSection({required String title, required String content}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(
-        color: const Color(0xFF191919),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF292929)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-            ),
+            ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            content,
-            style: const TextStyle(
-              color: Color(0xFFBDBDBD),
-              fontSize: 14,
-              height: 1.55,
-            ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoTile({required IconData icon, required String label, required String value}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xff2A0A0E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFF3B3B)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white, size: 28),
+          const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBottomButtons() {
-    return SafeArea(
+  Widget _buildPoster(Map<String, dynamic> item) {
+    final posterUrl = _readText(item, 'poster_url');
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-        decoration: const BoxDecoration(
-          color: Color(0xFF151515),
-          border: Border(top: BorderSide(color: Color(0xFF292929))),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _isDeleting ? null : _confirmDelete,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.redAccent,
-                  side: const BorderSide(color: Colors.redAccent),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: const Text('Delete'),
+        width: 110,
+        height: 155,
+        color: const Color(0xff2A0A0E),
+        child: posterUrl.isEmpty
+            ? const Center(child: Icon(Icons.movie, color: Colors.grey, size: 40))
+            : Image.network(
+                posterUrl,
+                fit: BoxFit.cover,
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded || frame != null) return child;
+                  return const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(color: Color(0xFFFF3B3B), strokeWidth: 2),
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return const Center(child: Icon(Icons.error_outline, color: Colors.grey));
+                },
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: ElevatedButton(
-                onPressed: _isDeleting ? null : _openEditSheet,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE50914),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: Text(_isDeleting ? 'Deleting...' : 'Edit Watchlist'),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

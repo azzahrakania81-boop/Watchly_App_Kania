@@ -5,7 +5,7 @@ import '/resources/pages/home_page.dart';
 import '/resources/pages/add_watchlist_page.dart';
 import '/resources/pages/not_found_page.dart';
 import '/resources/pages/detail_watchlist_page.dart';
-
+import '/resources/pages/profile_page.dart';
 import 'package:nylo_framework/nylo_framework.dart';
 
 appRouter() => nyRoutes((router) {
@@ -16,4 +16,5 @@ appRouter() => nyRoutes((router) {
   router.add(AddWatchlistPage.path);
   router.add(NotFoundPage.path).unknownRoute();
   router.add(DetailWatchlistPage.path);
+  router.add(ProfilePage.path);
 });

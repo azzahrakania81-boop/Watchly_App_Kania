@@ -7,56 +7,65 @@ class WelcomePage extends NyStatefulWidget {
     (_) => WelcomePage(),
   );
 
-  WelcomePage({super.key})
-      : super(child: () => _WelcomePageState());
+  WelcomePage({super.key}) : super(child: () => _WelcomePageState());
 }
 
 class _WelcomePageState extends NyPage<WelcomePage> {
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff100708),
+      backgroundColor: const Color(0xff120708),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Spacer(),
-
-              const Text(
-                "Watchly",
-                style: TextStyle(
-                  color: Colors.red,
-                  fontSize: 42,
-                  fontWeight: FontWeight.bold,
-                ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFF3B3B),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.play_arrow,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    "Watchly",
+                    style: TextStyle(
+                      color: Color(0xFFFF3B3B),
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
-
-              const SizedBox(height: 70),
-
+              const Spacer(),
+              Image.asset(
+                "assets/images/cinema.png", 
+                height: 260, 
+                width: 260,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 40),
               const Text(
-                "SAVE TODAY\nWATCH ANYTIME!",
+                "SAVE TODAY,\nWATCH ANYTIME!",
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 26,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                  height: 1.4,
                 ),
               ),
-
-              const SizedBox(height: 15),
-
-              const Text(
-                "Track your movies and series easily.",
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 14,
-                ),
-              ),
-
               const Spacer(),
-
               SizedBox(
                 width: double.infinity,
                 height: 55,
@@ -65,23 +74,23 @@ class _WelcomePageState extends NyPage<WelcomePage> {
                     routeTo('/login');
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
+                    backgroundColor: const Color(0xFFFF3B3B),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(30),
                     ),
                   ),
                   child: const Text(
                     "GET STARTED",
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 17,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      letterSpacing: 1.0,
                     ),
                   ),
                 ),
               ),
-
-              const SizedBox(height: 20),
+              const SizedBox(height: 10),
             ],
           ),
         ),
